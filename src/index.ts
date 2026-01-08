@@ -126,6 +126,10 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     // 解析响应
     const images = parseResponse(httpResponse.body);
+    if (images.length === 0) {
+      // 调试：输出原始响应结构
+      console.error('原始响应:', JSON.stringify(httpResponse.body, null, 2).slice(0, 500));
+    }
 
     // 下载 URL 类型的图片
     const resolvedImages = await resolveImages(images);
@@ -157,7 +161,12 @@ function parseResponse(body: unknown): ImagePayload[] {
   const response = body as {
     choices?: Array<{
       message?: {
-        content?: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+        content?: string | Array<{
+          type: string;
+          text?: string;
+          image_url?: { url: string };
+          inline_data?: { mime_type: string; data: string };
+        }>;
       };
     }>;
   };
@@ -186,6 +195,7 @@ function parseResponse(body: unknown): ImagePayload[] {
     } else if (Array.isArray(content)) {
       // 数组格式
       for (const part of content) {
+        // image_url 格式
         if (part.type === 'image_url' && part.image_url?.url) {
           const url = part.image_url.url;
           if (url.startsWith('data:')) {
@@ -203,12 +213,22 @@ function parseResponse(body: unknown): ImagePayload[] {
             } as ImagePayload & { _url: string });
           }
         }
+        // inline_data 格式 (Gemini/OpenRouter 风格)
+        if (part.type === 'image' && part.inline_data?.data) {
+          const bytes = decodeBase64(part.inline_data.data);
+          images.push({
+            bytes,
+            mimeType: part.inline_data.mime_type || inferMimeType(bytes),
+            source: 'b64',
+          });
+        }
       }
     }
   }
 
   if (images.length === 0) {
-    throw new Error('响应中没有图片数据');
+    const rawResponse = JSON.stringify(body, null, 2);
+    throw new Error(`响应中没有图片数据。原始响应: ${rawResponse}`);
   }
 
   return images;
