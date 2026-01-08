@@ -1,4 +1,4 @@
-import type { HttpRequest, HttpResponse, ImagePayload, NormalizedInput, GeminiImageParams, ProviderConfig } from '../types.js';
+import type { HttpRequest, HttpResponse, ImagePayload, NormalizedInput, ProviderConfig } from '../types.js';
 import { decodeBase64, inferMimeType, type ProviderAdapter } from './base.js';
 
 export class GeminiAdapter implements ProviderAdapter {
@@ -14,7 +14,6 @@ export class GeminiAdapter implements ProviderAdapter {
   }
 
   buildRequest(input: NormalizedInput, config: ProviderConfig): HttpRequest {
-    const params = input.params as GeminiImageParams;
     const baseUrl = config.baseUrl || 'https://generativelanguage.googleapis.com/v1beta';
     const model = input.model || 'gemini-2.0-flash-exp-image-generation';
 
@@ -43,13 +42,6 @@ export class GeminiAdapter implements ProviderAdapter {
         contents,
         generationConfig: {
           responseModalities: ['TEXT', 'IMAGE'],
-          // 当 aspectRatio 或 imageSize 存在时构建 imageConfig
-          ...((params.aspectRatio || params.imageSize) && {
-            imageConfig: {
-              ...(params.aspectRatio && { aspectRatio: params.aspectRatio }),
-              ...(params.imageSize && { imageSize: params.imageSize }),
-            },
-          }),
         },
       },
     };

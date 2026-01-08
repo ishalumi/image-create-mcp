@@ -1,4 +1,4 @@
-import type { HttpRequest, HttpResponse, ImagePayload, NormalizedInput, OpenRouterImageParams, ProviderConfig } from '../types.js';
+import type { HttpRequest, HttpResponse, ImagePayload, NormalizedInput, ProviderConfig } from '../types.js';
 import { decodeBase64, downloadImage, inferMimeType, type ProviderAdapter } from './base.js';
 
 export class OpenRouterAdapter implements ProviderAdapter {
@@ -14,15 +14,11 @@ export class OpenRouterAdapter implements ProviderAdapter {
   }
 
   buildRequest(input: NormalizedInput, config: ProviderConfig): HttpRequest {
-    const params = input.params as OpenRouterImageParams;
     const baseUrl = config.baseUrl || 'https://openrouter.ai/api/v1';
 
     // 构建 messages
     const messages = input.messages.length > 0
-      ? input.messages.map((msg) => ({
-          role: msg.role,
-          content: msg.content,
-        }))
+      ? input.messages.map((msg) => ({ role: msg.role, content: msg.content }))
       : [{ role: 'user', content: input.prompt }];
 
     return {
@@ -31,17 +27,11 @@ export class OpenRouterAdapter implements ProviderAdapter {
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${config.apiKey}`,
-        'HTTP-Referer': 'https://github.com/image-create-mcp',
-        'X-Title': 'Image Create MCP',
         ...config.headers,
       },
       body: {
         model: input.model,
         messages,
-        modalities: params.modalities || ['image', 'text'],
-        temperature: params.temperature,
-        top_p: params.top_p,
-        max_tokens: params.max_tokens || 4096,
       },
     };
   }

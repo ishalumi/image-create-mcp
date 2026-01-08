@@ -1,4 +1,4 @@
-import type { HttpRequest, HttpResponse, ImagePayload, NormalizedInput, OpenAIImageParams, ProviderConfig } from '../types.js';
+import type { HttpRequest, HttpResponse, ImagePayload, NormalizedInput, ProviderConfig } from '../types.js';
 import { decodeBase64, downloadImage, inferMimeType, type ProviderAdapter } from './base.js';
 
 export class OpenAIAdapter implements ProviderAdapter {
@@ -8,18 +8,22 @@ export class OpenAIAdapter implements ProviderAdapter {
     if (!config.apiKey) {
       throw new Error('OpenAI API Key 未配置');
     }
-    if (!input.prompt) {
-      throw new Error('OpenAI 需要 prompt');
+    if (!input.prompt && input.messages.length === 0) {
+      throw new Error('OpenAI 需要 prompt 或 messages');
     }
   }
 
   buildRequest(input: NormalizedInput, config: ProviderConfig): HttpRequest {
-    const params = input.params as OpenAIImageParams;
     const baseUrl = config.baseUrl || 'https://api.openai.com/v1';
+
+    // 构建 messages（对话式接口）
+    const messages = input.messages.length > 0
+      ? input.messages.map((msg) => ({ role: msg.role, content: msg.content }))
+      : [{ role: 'user', content: input.prompt }];
 
     return {
       method: 'POST',
-      url: `${baseUrl}/images/generations`,
+      url: `${baseUrl}/chat/completions`,
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${config.apiKey}`,
@@ -27,13 +31,7 @@ export class OpenAIAdapter implements ProviderAdapter {
       },
       body: {
         model: input.model,
-        prompt: input.prompt,
-        n: params.n || 1,
-        size: params.size || '1024x1024',
-        quality: params.quality || 'standard',
-        style: params.style,
-        response_format: params.response_format || 'b64_json',
-        background: params.background,
+        messages,
       },
     };
   }
@@ -45,27 +43,47 @@ export class OpenAIAdapter implements ProviderAdapter {
     }
 
     const body = response.body as {
-      data: Array<{ url?: string; b64_json?: string; revised_prompt?: string }>;
+      choices?: Array<{
+        message?: {
+          content?: string;
+        };
+      }>;
     };
 
-    return body.data.map((item) => {
-      if (item.b64_json) {
-        const bytes = decodeBase64(item.b64_json);
-        return {
-          bytes,
-          mimeType: inferMimeType(bytes),
-          source: 'b64' as const,
-        };
-      } else if (item.url) {
-        return {
-          bytes: new Uint8Array(),
-          mimeType: 'image/png',
-          source: 'url' as const,
-          _url: item.url,
-        } as ImagePayload & { _url: string };
+    const images: ImagePayload[] = [];
+
+    for (const choice of body.choices || []) {
+      const content = choice.message?.content;
+      if (typeof content === 'string') {
+        // 从 markdown 图片语法提取 base64
+        const base64Matches = content.matchAll(/!\[.*?\]\((data:image\/[^;]+;base64,([^)]+))\)/g);
+        for (const match of base64Matches) {
+          const bytes = decodeBase64(match[2]);
+          images.push({
+            bytes,
+            mimeType: inferMimeType(bytes),
+            source: 'b64',
+          });
+        }
+
+        // 从 markdown 图片语法提取 URL
+        const urlMatches = content.matchAll(/!\[.*?\]\((https?:\/\/[^)]+)\)/g);
+        for (const match of urlMatches) {
+          images.push({
+            bytes: new Uint8Array(),
+            mimeType: 'image/png',
+            source: 'url',
+            _url: match[1],
+          } as ImagePayload & { _url: string });
+        }
       }
+    }
+
+    if (images.length === 0) {
       throw new Error('OpenAI 响应中没有图片数据');
-    });
+    }
+
+    return images;
   }
 }
 

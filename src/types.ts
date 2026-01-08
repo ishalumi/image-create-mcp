@@ -25,28 +25,19 @@ export interface ImageGenerateInput {
   requestId?: string;
 }
 
-// OpenAI 参数
+// OpenAI 参数（简化版，仅保留基础参数）
 export interface OpenAIImageParams {
-  n?: number;
-  size?: '256x256' | '512x512' | '1024x1024' | '1792x1024' | '1024x1792';
-  quality?: 'standard' | 'hd' | 'high';
-  style?: 'vivid' | 'natural';
-  response_format?: 'url' | 'b64_json';
-  background?: 'transparent' | 'opaque' | 'auto';
+  // 预留扩展
 }
 
-// Gemini 参数
+// Gemini 参数（简化版）
 export interface GeminiImageParams {
-  aspectRatio?: '1:1' | '16:9' | '4:3' | '9:16' | '3:2' | '2:3' | '4:5' | '5:4' | '21:9' | '3:4';
-  imageSize?: '1K' | '2K' | '4K';
+  // 预留扩展
 }
 
-// OpenRouter 参数
+// OpenRouter 参数（简化版）
 export interface OpenRouterImageParams {
-  modalities?: Array<'image' | 'text'>;
-  temperature?: number;
-  top_p?: number;
-  max_tokens?: number;
+  // 预留扩展
 }
 
 // Provider 参数联合类型

@@ -70,23 +70,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 },
               },
             },
-            params: {
-              type: 'object',
-              description: 'Provider 特定参数',
-              properties: {
-                // OpenAI 参数
-                n: { type: 'number', description: '生成图片数量 (1-10)' },
-                size: { type: 'string', description: '图片尺寸' },
-                quality: { type: 'string', description: '图片质量' },
-                style: { type: 'string', description: '图片风格' },
-                // Gemini 参数
-                aspectRatio: { type: 'string', description: '宽高比' },
-                imageSize: { type: 'string', description: '图片分辨率' },
-                // OpenRouter 参数
-                modalities: { type: 'array', description: '输出模态' },
-                temperature: { type: 'number', description: '温度参数' },
-              },
-            },
             output: {
               type: 'object',
               description: '输出选项',

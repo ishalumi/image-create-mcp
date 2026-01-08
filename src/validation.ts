@@ -13,29 +13,8 @@ const outputOptionsSchema = z.object({
   overwrite: z.enum(['error', 'overwrite', 'suffix']).optional(),
 });
 
-// OpenAI 参数 Schema
-const openaiParamsSchema = z.object({
-  n: z.number().int().min(1).max(10).optional(),
-  size: z.enum(['256x256', '512x512', '1024x1024', '1792x1024', '1024x1792']).optional(),
-  quality: z.enum(['standard', 'hd', 'high']).optional(),
-  style: z.enum(['vivid', 'natural']).optional(),
-  response_format: z.enum(['url', 'b64_json']).optional(),
-  background: z.enum(['transparent', 'opaque', 'auto']).optional(),
-});
-
-// Gemini 参数 Schema
-const geminiParamsSchema = z.object({
-  aspectRatio: z.enum(['1:1', '16:9', '4:3', '9:16', '3:2', '2:3', '4:5', '5:4', '21:9', '3:4']).optional(),
-  imageSize: z.enum(['1K', '2K', '4K']).optional(),
-});
-
-// OpenRouter 参数 Schema
-const openrouterParamsSchema = z.object({
-  modalities: z.array(z.enum(['image', 'text'])).optional(),
-  temperature: z.number().min(0).max(2).optional(),
-  top_p: z.number().min(0).max(1).optional(),
-  max_tokens: z.number().int().positive().optional(),
-});
+// 通用参数 Schema（简化版）
+const paramsSchema = z.record(z.unknown()).optional();
 
 // 输入 Schema
 const imageGenerateInputSchema = z.object({
@@ -43,20 +22,13 @@ const imageGenerateInputSchema = z.object({
   model: z.string().optional(),
   prompt: z.string().optional(),
   messages: z.array(chatMessageSchema).optional(),
-  params: z.record(z.unknown()).optional(),
+  params: paramsSchema,
   output: outputOptionsSchema.optional(),
   requestId: z.string().optional(),
 }).refine(
   (data) => data.prompt || (data.messages && data.messages.length > 0),
   { message: '必须提供 prompt 或 messages' }
 );
-
-// Provider 参数 Schema 映射
-const providerParamsSchemas: Record<ProviderType, z.ZodSchema> = {
-  openai: openaiParamsSchema,
-  gemini: geminiParamsSchema,
-  openrouter: openrouterParamsSchema,
-};
 
 // 验证输入
 export function validateInput(input: unknown): ImageGenerateInput {
@@ -67,14 +39,9 @@ export function validateInput(input: unknown): ImageGenerateInput {
   return result.data as ImageGenerateInput;
 }
 
-// 验证 Provider 参数
-export function validateProviderParams(provider: ProviderType, params: unknown) {
-  const schema = providerParamsSchemas[provider];
-  const result = schema.safeParse(params || {});
-  if (!result.success) {
-    throw new Error(`Provider 参数验证失败: ${result.error.message}`);
-  }
-  return result.data;
+// 验证 Provider 参数（简化版，不再严格校验）
+export function validateProviderParams(_provider: ProviderType, _params: unknown) {
+  return _params || {};
 }
 
 // 标准化输入
