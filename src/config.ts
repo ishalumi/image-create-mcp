@@ -52,7 +52,7 @@ export function loadConfigFromEnv(): AppConfig {
   if (process.env.OPENAI_API_KEY) {
     config.providers.openai = {
       apiKey: process.env.OPENAI_API_KEY,
-      baseUrl: process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1',
+      baseUrl: process.env.OPENAI_API_URL || 'https://api.openai.com/v1/chat/completions',
       model: process.env.OPENAI_IMAGE_MODEL || 'dall-e-3',
     };
   }
@@ -70,7 +70,7 @@ export function loadConfigFromEnv(): AppConfig {
   if (process.env.OPENROUTER_API_KEY) {
     config.providers.openrouter = {
       apiKey: process.env.OPENROUTER_API_KEY,
-      baseUrl: process.env.OPENROUTER_BASE_URL || 'https://openrouter.ai/api/v1',
+      baseUrl: process.env.OPENROUTER_API_URL || 'https://openrouter.ai/api/v1/chat/completions',
       model: process.env.OPENROUTER_IMAGE_MODEL || 'google/gemini-2.5-flash-preview:thinking',
     };
   }

@@ -14,7 +14,8 @@ export class OpenRouterAdapter implements ProviderAdapter {
   }
 
   buildRequest(input: NormalizedInput, config: ProviderConfig): HttpRequest {
-    const baseUrl = config.baseUrl || 'https://openrouter.ai/api/v1';
+    // URL 需要填写完整路径，不再自动补全
+    const url = config.baseUrl || 'https://openrouter.ai/api/v1/chat/completions';
 
     // 构建 messages
     const messages = input.messages.length > 0
@@ -23,7 +24,7 @@ export class OpenRouterAdapter implements ProviderAdapter {
 
     return {
       method: 'POST',
-      url: `${baseUrl}/chat/completions`,
+      url,
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${config.apiKey}`,
