@@ -2,6 +2,8 @@
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { readFile } from 'fs/promises';
+import { existsSync } from 'fs';
 
 import { loadConfigFromEnv, getProviderConfig, getAvailableProviders } from './config.js';
 import { saveImages, resolveOutputDir } from './image-save.js';
@@ -103,6 +105,42 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
 
     // 构建请求
+    // 处理 messages 中的图片文件路径
+    const processedMessages = await Promise.all(
+      normalized.messages.map(async (msg) => {
+        // 检查 content 是否是图片文件路径
+        if (typeof msg.content === 'string' && existsSync(msg.content) && /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.content)) {
+          const imageBytes = await readFile(msg.content);
+          const base64 = Buffer.from(imageBytes).toString('base64');
+          const mimeType = inferMimeType(new Uint8Array(imageBytes));
+
+          // 如果有 prompt，将图片和文本组合在一起
+          const contentParts: any[] = [
+            {
+              type: 'image_url',
+              image_url: {
+                url: `data:${mimeType};base64,${base64}`
+              }
+            }
+          ];
+
+          // 如果有 prompt，添加文本部分
+          if (input.prompt) {
+            contentParts.push({
+              type: 'text',
+              text: input.prompt
+            });
+          }
+
+          return {
+            role: msg.role,
+            content: contentParts
+          };
+        }
+        return { role: msg.role, content: msg.content };
+      })
+    );
+
     const httpRequest: HttpRequest = {
       method: 'POST',
       url: providerConfig.apiUrl,
@@ -112,7 +150,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       },
       body: {
         model: normalized.model,
-        messages: normalized.messages.map((msg) => ({ role: msg.role, content: msg.content })),
+        messages: processedMessages,
       },
     };
 
