@@ -20,13 +20,13 @@
 **用户级安装**（所有项目可用）：
 
 ```bash
-claude mcp add image-create-mcp -s user -- npx -y image-create-mcp
+claude mcp add image-create-mcp -s user -- npx image-create-mcp
 ```
 
 **项目级安装**（仅当前项目可用）：
 
 ```bash
-claude mcp add image-create-mcp -s project -- npx -y image-create-mcp
+claude mcp add image-create-mcp -s project -- npx image-create-mcp
 ```
 
 安装后需要设置环境变量，编辑对应的配置文件添加 `env` 字段。
