@@ -1,55 +1,41 @@
 #!/usr/bin/env node
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import {
-  CallToolRequestSchema,
-  ListToolsRequestSchema,
-} from '@modelcontextprotocol/sdk/types.js';
+import { CallToolRequestSchema, ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 
-import { loadConfigFromEnv, getProviderConfig } from './config.js';
-import { validateInput, validateProviderParams, normalizeInput } from './validation.js';
-import { getProvider } from './providers/index.js';
-import { sendRequest } from './providers/base.js';
-import { resolveImagePayloads } from './providers/openai.js';
-import { resolveOpenRouterImages } from './providers/openrouter.js';
+import { loadConfigFromEnv, getProviderConfig, getAvailableProviders } from './config.js';
 import { saveImages, resolveOutputDir } from './image-save.js';
-import type { ImageGenerateResult, ImagePayload } from './types.js';
+import { sendRequest, decodeBase64, downloadImage, inferMimeType } from './providers/base.js';
+import type { ImageGenerateInput, ImageGenerateResult, ImagePayload, NormalizedInput, HttpRequest } from './types.js';
 
 // 加载配置
 const config = loadConfigFromEnv();
 
 // 创建 MCP 服务器
 const server = new Server(
-  {
-    name: 'image-create-mcp',
-    version: '1.0.0',
-  },
-  {
-    capabilities: {
-      tools: {},
-    },
-  }
+  { name: 'image-create-mcp', version: '1.0.3' },
+  { capabilities: { tools: {} } }
 );
 
 // 注册工具列表
 server.setRequestHandler(ListToolsRequestSchema, async () => {
+  const providers = getAvailableProviders(config);
   return {
     tools: [
       {
         name: 'generate_image',
-        description: '通过 AI 生成图片并保存到指定目录。支持 OpenAI (DALL-E)、Gemini、OpenRouter 等多个 Provider。',
+        description: `通过 AI 生成图片并保存。可用配置组: ${providers.length > 0 ? providers.join(', ') : '(未配置)'}`,
         inputSchema: {
           type: 'object',
           required: ['provider'],
           properties: {
             provider: {
               type: 'string',
-              enum: ['openai', 'gemini', 'openrouter'],
-              description: '图片生成服务提供商',
+              description: `配置组名称: ${providers.join(' / ') || '未配置任何 Provider'}`,
             },
             model: {
               type: 'string',
-              description: '模型名称，不同 Provider 支持不同模型',
+              description: '模型名称（可选，覆盖环境变量配置）',
             },
             prompt: {
               type: 'string',
@@ -57,15 +43,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             messages: {
               type: 'array',
-              description: '对话消息列表（用于支持多轮对话的 Provider）',
+              description: '对话消息列表',
               items: {
                 type: 'object',
                 required: ['role', 'content'],
                 properties: {
-                  role: {
-                    type: 'string',
-                    enum: ['system', 'user', 'assistant'],
-                  },
+                  role: { type: 'string', enum: ['system', 'user', 'assistant'] },
                   content: { type: 'string' },
                 },
               },
@@ -74,19 +57,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: 'object',
               description: '输出选项',
               properties: {
-                dir: {
-                  type: 'string',
-                  description: '保存目录，默认当前目录',
-                },
-                filename: {
-                  type: 'string',
-                  description: '文件名（不含扩展名）',
-                },
-                overwrite: {
-                  type: 'string',
-                  enum: ['error', 'overwrite', 'suffix'],
-                  description: '文件存在时的处理方式',
-                },
+                dir: { type: 'string', description: '保存目录' },
+                filename: { type: 'string', description: '文件名（不含扩展名）' },
+                overwrite: { type: 'string', enum: ['error', 'overwrite', 'suffix'] },
               },
             },
           },
@@ -103,50 +76,62 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 
   try {
+    const input = request.params.arguments as unknown as ImageGenerateInput;
+
     // 验证输入
-    const input = validateInput(request.params.arguments);
+    if (!input.provider) {
+      throw new Error('必须指定 provider');
+    }
+    if (!input.prompt && (!input.messages || input.messages.length === 0)) {
+      throw new Error('必须提供 prompt 或 messages');
+    }
 
     // 获取 Provider 配置
     const providerConfig = getProviderConfig(config, input.provider);
 
-    // 验证 Provider 参数
-    validateProviderParams(input.provider, input.params);
-
     // 标准化输入
-    const normalized = normalizeInput(input, {
-      outputDir: config.defaults.outputDir || '.',
-      filenamePrefix: config.defaults.filenamePrefix || 'image',
-      overwrite: config.defaults.overwrite || 'suffix',
-      model: providerConfig.model || getDefaultModel(input.provider),
-    });
-
-    // 解析输出目录
-    normalized.output.dir = resolveOutputDir(normalized.output.dir);
-
-    // 获取 Provider 适配器
-    const provider = getProvider(input.provider);
-
-    // 验证
-    provider.validate(normalized, providerConfig);
+    const normalized: NormalizedInput = {
+      provider: input.provider,
+      model: input.model || providerConfig.model,
+      prompt: input.prompt || extractPromptFromMessages(input.messages || []),
+      messages: input.messages || [{ role: 'user', content: input.prompt! }],
+      output: {
+        dir: resolveOutputDir(input.output?.dir || config.defaults.outputDir),
+        filename: input.output?.filename || generateFilename(config.defaults.filenamePrefix),
+        overwrite: input.output?.overwrite || config.defaults.overwrite,
+      },
+    };
 
     // 构建请求
-    const httpRequest = provider.buildRequest(normalized, providerConfig);
+    const httpRequest: HttpRequest = {
+      method: 'POST',
+      url: providerConfig.apiUrl,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${providerConfig.apiKey}`,
+      },
+      body: {
+        model: normalized.model,
+        messages: normalized.messages.map((msg) => ({ role: msg.role, content: msg.content })),
+      },
+    };
 
     // 发送请求
     const httpResponse = await sendRequest(httpRequest);
 
-    // 解析响应
-    let payloads: ImagePayload[] = provider.parseResponse(httpResponse);
-
-    // 处理 URL 类型的图片
-    if (input.provider === 'openai') {
-      payloads = await resolveImagePayloads(payloads);
-    } else if (input.provider === 'openrouter') {
-      payloads = await resolveOpenRouterImages(payloads);
+    if (httpResponse.status !== 200) {
+      const error = httpResponse.body as { error?: { message?: string } };
+      throw new Error(`API 错误: ${error.error?.message || httpResponse.status}`);
     }
 
+    // 解析响应
+    const images = parseResponse(httpResponse.body);
+
+    // 下载 URL 类型的图片
+    const resolvedImages = await resolveImages(images);
+
     // 保存图片
-    const savedImages = await saveImages(payloads, normalized.output);
+    const savedImages = await saveImages(resolvedImages, normalized.output);
 
     // 构建结果
     const result: ImageGenerateResult = {
@@ -156,39 +141,106 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
 
     return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify(result, null, 2),
-        },
-      ],
+      content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return {
-      content: [
-        {
-          type: 'text',
-          text: JSON.stringify({ error: message }, null, 2),
-        },
-      ],
+      content: [{ type: 'text', text: JSON.stringify({ error: message }, null, 2) }],
       isError: true,
     };
   }
 });
 
-// 获取默认模型
-function getDefaultModel(provider: string): string {
-  switch (provider) {
-    case 'openai':
-      return 'dall-e-3';
-    case 'gemini':
-      return 'gemini-2.0-flash-exp-image-generation';
-    case 'openrouter':
-      return 'google/gemini-2.5-flash-preview:thinking';
-    default:
-      return '';
+// 解析响应中的图片
+function parseResponse(body: unknown): ImagePayload[] {
+  const response = body as {
+    choices?: Array<{
+      message?: {
+        content?: string | Array<{ type: string; text?: string; image_url?: { url: string } }>;
+      };
+    }>;
+  };
+
+  const images: ImagePayload[] = [];
+
+  for (const choice of response.choices || []) {
+    const content = choice.message?.content;
+
+    if (typeof content === 'string') {
+      // Markdown base64 格式: ![...](data:image/...;base64,...)
+      for (const match of content.matchAll(/!\[.*?\]\((data:image\/[^;]+;base64,([^)]+))\)/g)) {
+        const bytes = decodeBase64(match[2]);
+        images.push({ bytes, mimeType: inferMimeType(bytes), source: 'b64' });
+      }
+
+      // Markdown URL 格式: ![...](https://...)
+      for (const match of content.matchAll(/!\[.*?\]\((https?:\/\/[^)]+)\)/g)) {
+        images.push({
+          bytes: new Uint8Array(),
+          mimeType: 'image/png',
+          source: 'url',
+          _url: match[1],
+        } as ImagePayload & { _url: string });
+      }
+    } else if (Array.isArray(content)) {
+      // 数组格式
+      for (const part of content) {
+        if (part.type === 'image_url' && part.image_url?.url) {
+          const url = part.image_url.url;
+          if (url.startsWith('data:')) {
+            const base64Match = url.match(/base64,(.+)/);
+            if (base64Match) {
+              const bytes = decodeBase64(base64Match[1]);
+              images.push({ bytes, mimeType: inferMimeType(bytes), source: 'b64' });
+            }
+          } else {
+            images.push({
+              bytes: new Uint8Array(),
+              mimeType: 'image/png',
+              source: 'url',
+              _url: url,
+            } as ImagePayload & { _url: string });
+          }
+        }
+      }
+    }
   }
+
+  if (images.length === 0) {
+    throw new Error('响应中没有图片数据');
+  }
+
+  return images;
+}
+
+// 下载 URL 类型的图片
+async function resolveImages(payloads: ImagePayload[]): Promise<ImagePayload[]> {
+  return Promise.all(
+    payloads.map(async (payload) => {
+      const urlPayload = payload as ImagePayload & { _url?: string };
+      if (payload.source === 'url' && urlPayload._url) {
+        const bytes = await downloadImage(urlPayload._url);
+        return { bytes, mimeType: inferMimeType(bytes), source: 'url' as const };
+      }
+      return payload;
+    })
+  );
+}
+
+// 从消息中提取 prompt
+function extractPromptFromMessages(messages: Array<{ role: string; content: string }>): string {
+  const userMessages = messages.filter((m) => m.role === 'user');
+  if (userMessages.length === 0) {
+    throw new Error('消息中必须包含至少一条用户消息');
+  }
+  return userMessages[userMessages.length - 1].content;
+}
+
+// 生成文件名
+function generateFilename(prefix: string): string {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+  return `${prefix}-${timestamp}`;
 }
 
 // 启动服务器

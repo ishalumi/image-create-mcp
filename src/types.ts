@@ -1,6 +1,3 @@
-// Provider 类型
-export type ProviderType = 'openai' | 'gemini' | 'openrouter';
-
 // 聊天消息
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
@@ -16,42 +13,20 @@ export interface OutputOptions {
 
 // 图片生成输入
 export interface ImageGenerateInput {
-  provider: ProviderType;
+  provider: string;
   model?: string;
   prompt?: string;
   messages?: ChatMessage[];
-  params?: ProviderParams;
   output?: OutputOptions;
-  requestId?: string;
 }
-
-// OpenAI 参数（简化版，仅保留基础参数）
-export interface OpenAIImageParams {
-  // 预留扩展
-}
-
-// Gemini 参数（简化版）
-export interface GeminiImageParams {
-  // 预留扩展
-}
-
-// OpenRouter 参数（简化版）
-export interface OpenRouterImageParams {
-  // 预留扩展
-}
-
-// Provider 参数联合类型
-export type ProviderParams = OpenAIImageParams | GeminiImageParams | OpenRouterImageParams;
 
 // 标准化输入
 export interface NormalizedInput {
-  provider: ProviderType;
+  provider: string;
   model: string;
   prompt: string;
   messages: ChatMessage[];
-  params: ProviderParams;
   output: Required<OutputOptions>;
-  requestId: string;
 }
 
 // HTTP 请求
@@ -73,7 +48,7 @@ export interface HttpResponse {
 export interface ImagePayload {
   bytes: Uint8Array;
   mimeType: string;
-  source: 'b64' | 'url' | 'inline';
+  source: 'b64' | 'url';
 }
 
 // 保存的图片
@@ -87,52 +62,24 @@ export interface SavedImage {
 
 // 图片生成结果
 export interface ImageGenerateResult {
-  provider: ProviderType;
+  provider: string;
   model: string;
   images: SavedImage[];
-  warnings?: string[];
 }
 
 // Provider 配置
 export interface ProviderConfig {
-  baseUrl?: string;
   apiKey: string;
-  model?: string;
-  timeoutMs?: number;
-  headers?: Record<string, string>;
+  apiUrl: string;
+  model: string;
 }
 
 // 应用配置
 export interface AppConfig {
   defaults: {
-    provider: ProviderType;
-    outputDir?: string;
-    filenamePrefix?: string;
-    overwrite?: 'error' | 'overwrite' | 'suffix';
+    outputDir: string;
+    filenamePrefix: string;
+    overwrite: 'error' | 'overwrite' | 'suffix';
   };
-  providers: {
-    openai?: ProviderConfig;
-    gemini?: ProviderConfig;
-    openrouter?: ProviderConfig;
-  };
-}
-
-// 错误类型
-export type ErrorCode =
-  | 'CONFIG_MISSING'
-  | 'INVALID_PARAMS'
-  | 'HTTP_ERROR'
-  | 'DECODE_ERROR'
-  | 'SAVE_ERROR'
-  | 'PROVIDER_ERROR';
-
-export class ImageGenError extends Error {
-  constructor(
-    public code: ErrorCode,
-    message: string,
-    public details?: unknown
-  ) {
-    super(message);
-    this.name = 'ImageGenError';
-  }
+  providers: Record<string, ProviderConfig>;
 }
