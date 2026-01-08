@@ -20,7 +20,11 @@ AI 图片生成 MCP 服务器。通过对话式接口调用图像生成模型，
 claude mcp add image-create-mcp -s user -- npx image-create-mcp
 ```
 
-安装后编辑 `~/.claude.json` 添加环境变量。
+安装后，直接告诉 Claude 你的 API 配置信息：
+
+> "帮我配置 image-create-mcp 的环境变量，配置组名称 xxx，API 地址 https://...，密钥 sk-xxx，模型 xxx"
+
+Claude 会自动编辑 MCP 配置文件添加相应的环境变量。
 
 ### 手动配置
 
@@ -76,11 +80,12 @@ PROVIDER_BACKUP_MODEL=dall-e-3
 
 ## 使用示例
 
+### 文生图
+
 ```json
 {
   "provider": "main",
   "prompt": "一只可爱的猫咪在阳光下睡觉",
-  "images": ["./inputs/cat-1.png", "./inputs/cat-2.jpg"],
   "output": {
     "dir": "./images",
     "filename": "cute-cat"
@@ -88,7 +93,35 @@ PROVIDER_BACKUP_MODEL=dall-e-3
 }
 ```
 
-**参数说明：**
+### 图生图
+
+```json
+{
+  "provider": "main",
+  "prompt": "将这张图片转换为水彩画风格",
+  "images": ["./inputs/photo.jpg"],
+  "output": {
+    "dir": "./images",
+    "filename": "watercolor"
+  }
+}
+```
+
+### 多图输入
+
+```json
+{
+  "provider": "main",
+  "prompt": "将这两张图片融合成一张",
+  "images": ["./inputs/cat-1.png", "./inputs/cat-2.jpg"],
+  "output": {
+    "dir": "./images",
+    "filename": "merged"
+  }
+}
+```
+
+### 参数说明
 
 | 参数 | 类型 | 必填 | 说明 |
 |------|------|------|------|
@@ -96,12 +129,12 @@ PROVIDER_BACKUP_MODEL=dall-e-3
 | `model` | string | 否 | 模型名称（覆盖默认配置） |
 | `prompt` | string | 否* | 图片描述 |
 | `messages` | array | 否* | 对话消息 |
-| `images` | array | 否* | 上传图片路径列表（支持多图） |
+| `images` | array | 否 | 上传图片路径列表（支持多图） |
 | `output.dir` | string | 否 | 输出目录 |
 | `output.filename` | string | 否 | 文件名（不含扩展名） |
 | `output.overwrite` | string | 否 | `error` / `overwrite` / `suffix` |
 
-*`prompt` / `messages` / `images` 至少提供一个
+*`prompt` / `messages` 至少提供一个
 
 ## 响应格式
 
