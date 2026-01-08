@@ -8,7 +8,15 @@ import { existsSync } from 'fs';
 import { loadConfigFromEnv, getProviderConfig, getAvailableProviders } from './config.js';
 import { saveImages, resolveOutputDir } from './image-save.js';
 import { sendRequest, decodeBase64, downloadImage, inferMimeType } from './providers/base.js';
-import type { ImageGenerateInput, ImageGenerateResult, ImagePayload, NormalizedInput, HttpRequest } from './types.js';
+import type {
+  ChatMessage,
+  HttpRequest,
+  ImageGenerateInput,
+  ImageGenerateResult,
+  ImagePayload,
+  MessagePart,
+  NormalizedInput,
+} from './types.js';
 
 // 加载配置
 const config = loadConfigFromEnv();
@@ -51,8 +59,44 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 required: ['role', 'content'],
                 properties: {
                   role: { type: 'string', enum: ['system', 'user', 'assistant'] },
-                  content: { type: 'string' },
+                  content: {
+                    oneOf: [
+                      { type: 'string' },
+                      {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          required: ['type'],
+                          properties: {
+                            type: { type: 'string', enum: ['text', 'image_url', 'image'] },
+                            text: { type: 'string' },
+                            image_url: {
+                              type: 'object',
+                              properties: {
+                                url: { type: 'string' },
+                              },
+                            },
+                            inline_data: {
+                              type: 'object',
+                              properties: {
+                                mime_type: { type: 'string' },
+                                data: { type: 'string' },
+                              },
+                            },
+                          },
+                        },
+                      },
+                    ],
+                  },
                 },
+              },
+            },
+            images: {
+              type: 'array',
+              description: '上传图片路径列表（支持多图）',
+              items: {
+                type: 'string',
+                description: '本地图片路径或 data URL',
               },
             },
             output: {
@@ -84,62 +128,42 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     if (!input.provider) {
       throw new Error('必须指定 provider');
     }
-    if (!input.prompt && (!input.messages || input.messages.length === 0)) {
-      throw new Error('必须提供 prompt 或 messages');
+    const hasMessages = Array.isArray(input.messages) && input.messages.length > 0;
+    const hasImages = Array.isArray(input.images) && input.images.length > 0;
+
+    if (!input.prompt && !hasMessages && !hasImages) {
+      throw new Error('必须提供 prompt、messages 或 images');
     }
 
     // 获取 Provider 配置
     const providerConfig = getProviderConfig(config, input.provider);
 
     // 标准化输入
+    const imageParts = await buildImageParts(input.images || []);
+    const baseMessages: ChatMessage[] = hasMessages ? [...input.messages!] : [];
+    const shouldAppendUserMessage = !hasMessages || hasImages;
+    const userContent = shouldAppendUserMessage ? buildUserMessageContent(input.prompt, imageParts) : null;
+
+    if (userContent) {
+      baseMessages.push({ role: 'user', content: userContent });
+    }
+
+    const derivedPrompt = input.prompt || extractPromptFromMessages(baseMessages);
+    if (!derivedPrompt && !hasImages) {
+      throw new Error('必须提供 prompt 或 messages 中包含用户文本');
+    }
+
     const normalized: NormalizedInput = {
       provider: input.provider,
       model: input.model || providerConfig.model,
-      prompt: input.prompt || extractPromptFromMessages(input.messages || []),
-      messages: input.messages || [{ role: 'user', content: input.prompt! }],
+      prompt: derivedPrompt,
+      messages: baseMessages,
       output: {
         dir: resolveOutputDir(input.output?.dir || config.defaults.outputDir),
         filename: input.output?.filename || generateFilename(config.defaults.filenamePrefix),
         overwrite: input.output?.overwrite || config.defaults.overwrite,
       },
     };
-
-    // 构建请求
-    // 处理 messages 中的图片文件路径
-    const processedMessages = await Promise.all(
-      normalized.messages.map(async (msg) => {
-        // 检查 content 是否是图片文件路径
-        if (typeof msg.content === 'string' && existsSync(msg.content) && /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.content)) {
-          const imageBytes = await readFile(msg.content);
-          const base64 = Buffer.from(imageBytes).toString('base64');
-          const mimeType = inferMimeType(new Uint8Array(imageBytes));
-
-          // 如果有 prompt，将图片和文本组合在一起
-          const contentParts: any[] = [
-            {
-              type: 'image_url',
-              image_url: {
-                url: `data:${mimeType};base64,${base64}`
-              }
-            }
-          ];
-
-          // 如果有 prompt，添加文本部分
-          if (input.prompt) {
-            contentParts.push({
-              type: 'text',
-              text: input.prompt
-            });
-          }
-
-          return {
-            role: msg.role,
-            content: contentParts
-          };
-        }
-        return { role: msg.role, content: msg.content };
-      })
-    );
 
     const httpRequest: HttpRequest = {
       method: 'POST',
@@ -150,7 +174,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       },
       body: {
         model: normalized.model,
-        messages: processedMessages,
+        messages: normalized.messages,
       },
     };
 
@@ -193,6 +217,55 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     };
   }
 });
+
+const IMAGE_EXT_PATTERN = /\.(jpg|jpeg|png|gif|webp)$/i;
+
+async function buildImageParts(images: string[]): Promise<MessagePart[]> {
+  const parts: MessagePart[] = [];
+  for (const imageInput of images) {
+    if (!imageInput) {
+      throw new Error('images 中包含空的图片路径');
+    }
+    if (imageInput.startsWith('data:image/')) {
+      parts.push({ type: 'image_url', image_url: { url: imageInput } });
+      continue;
+    }
+    if (!existsSync(imageInput)) {
+      throw new Error(`图片文件不存在: ${imageInput}`);
+    }
+    if (!IMAGE_EXT_PATTERN.test(imageInput)) {
+      throw new Error(`不支持的图片格式: ${imageInput}`);
+    }
+
+    const imageBytes = await readFile(imageInput);
+    const base64 = Buffer.from(imageBytes).toString('base64');
+    const mimeType = inferMimeType(new Uint8Array(imageBytes));
+
+    parts.push({
+      type: 'image_url',
+      image_url: { url: `data:${mimeType};base64,${base64}` },
+    });
+  }
+  return parts;
+}
+
+function buildUserMessageContent(
+  prompt: string | undefined,
+  imageParts: MessagePart[]
+): string | MessagePart[] | null {
+  if (!prompt && imageParts.length === 0) {
+    return null;
+  }
+  if (imageParts.length === 0) {
+    return prompt || null;
+  }
+
+  const parts: MessagePart[] = [...imageParts];
+  if (prompt) {
+    parts.push({ type: 'text', text: prompt });
+  }
+  return parts;
+}
 
 // 解析响应中的图片
 function parseResponse(body: unknown): ImagePayload[] {
@@ -315,12 +388,29 @@ async function resolveImages(payloads: ImagePayload[]): Promise<ImagePayload[]> 
 }
 
 // 从消息中提取 prompt
-function extractPromptFromMessages(messages: Array<{ role: string; content: string }>): string {
-  const userMessages = messages.filter((m) => m.role === 'user');
-  if (userMessages.length === 0) {
-    throw new Error('消息中必须包含至少一条用户消息');
+function extractPromptFromMessages(messages: ChatMessage[]): string {
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i];
+    if (message.role !== 'user') {
+      continue;
+    }
+    if (typeof message.content === 'string') {
+      const trimmed = message.content.trim();
+      if (trimmed) {
+        return trimmed;
+      }
+      continue;
+    }
+    if (Array.isArray(message.content)) {
+      for (let j = message.content.length - 1; j >= 0; j -= 1) {
+        const part = message.content[j];
+        if (part.type === 'text' && part.text?.trim()) {
+          return part.text.trim();
+        }
+      }
+    }
   }
-  return userMessages[userMessages.length - 1].content;
+  return '';
 }
 
 // 生成文件名

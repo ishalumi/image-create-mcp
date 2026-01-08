@@ -1,7 +1,24 @@
+export interface MessagePartText {
+  type: 'text';
+  text: string;
+}
+
+export interface MessagePartImageUrl {
+  type: 'image_url';
+  image_url: { url: string };
+}
+
+export interface MessagePartImageInline {
+  type: 'image';
+  inline_data: { mime_type: string; data: string };
+}
+
+export type MessagePart = MessagePartText | MessagePartImageUrl | MessagePartImageInline;
+
 // 聊天消息
 export interface ChatMessage {
   role: 'system' | 'user' | 'assistant';
-  content: string;
+  content: string | MessagePart[];
 }
 
 // 输出选项
@@ -17,6 +34,7 @@ export interface ImageGenerateInput {
   model?: string;
   prompt?: string;
   messages?: ChatMessage[];
+  images?: string[];
   output?: OutputOptions;
 }
 

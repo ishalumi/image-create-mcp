@@ -80,6 +80,7 @@ PROVIDER_BACKUP_MODEL=dall-e-3
 {
   "provider": "main",
   "prompt": "一只可爱的猫咪在阳光下睡觉",
+  "images": ["./inputs/cat-1.png", "./inputs/cat-2.jpg"],
   "output": {
     "dir": "./images",
     "filename": "cute-cat"
@@ -95,11 +96,12 @@ PROVIDER_BACKUP_MODEL=dall-e-3
 | `model` | string | 否 | 模型名称（覆盖默认配置） |
 | `prompt` | string | 否* | 图片描述 |
 | `messages` | array | 否* | 对话消息 |
+| `images` | array | 否* | 上传图片路径列表（支持多图） |
 | `output.dir` | string | 否 | 输出目录 |
 | `output.filename` | string | 否 | 文件名（不含扩展名） |
 | `output.overwrite` | string | 否 | `error` / `overwrite` / `suffix` |
 
-*`prompt` 和 `messages` 至少提供一个
+*`prompt` / `messages` / `images` 至少提供一个
 
 ## 响应格式
 
