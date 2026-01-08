@@ -3,37 +3,37 @@
 [![npm version](https://badge.fury.io/js/image-create-mcp.svg)](https://www.npmjs.com/package/image-create-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-MCP server for AI image generation with multi-provider support. Generate images using OpenAI (DALL-E), Google Gemini, or OpenRouter.
+多 Provider 支持的 AI 图片生成 MCP 服务器。支持 OpenAI (DALL-E)、Google Gemini、OpenRouter。
 
-## Features
+## 功能特性
 
-- **Multi-Provider Support**: OpenAI (DALL-E 3), Gemini, OpenRouter
-- **Flexible Configuration**: Configure via environment variables
-- **Provider-Specific Parameters**: Size, quality, style, aspect ratio, etc.
-- **Auto Save**: Save generated images to specified directory with custom filename
-- **Security**: Path traversal protection, HTTPS validation, size limits
+- **多 Provider 支持**：OpenAI (DALL-E 3)、Gemini、OpenRouter
+- **灵活配置**：通过环境变量配置
+- **Provider 专属参数**：尺寸、质量、风格、宽高比等
+- **自动保存**：将生成的图片保存到指定目录，支持自定义文件名
+- **安全特性**：路径穿越防护、HTTPS 验证、大小限制
 
-## Installation
+## 安装
 
-### Using npx (Recommended)
+### 使用 npx（推荐）
 
-No installation required, just configure in your AI tool:
+无需安装，直接在 AI 工具中配置即可：
 
 ```bash
 npx image-create-mcp
 ```
 
-### Global Installation
+### 全局安装
 
 ```bash
 npm install -g image-create-mcp
 ```
 
-## Configuration
+## 配置说明
 
 ### Claude Code
 
-Add to your Claude Code MCP settings (`~/.claude/claude_desktop_config.json` or via Claude Code settings):
+在 Claude Code MCP 设置中添加（`~/.claude/claude_desktop_config.json` 或通过 Claude Code 设置）：
 
 ```json
 {
@@ -53,7 +53,7 @@ Add to your Claude Code MCP settings (`~/.claude/claude_desktop_config.json` or 
 
 ### Cursor
 
-Add to Cursor MCP settings (`.cursor/mcp.json`):
+在 Cursor MCP 设置中添加（`.cursor/mcp.json`）：
 
 ```json
 {
@@ -73,7 +73,7 @@ Add to Cursor MCP settings (`.cursor/mcp.json`):
 
 ### Roo Code / Roo Cline
 
-Add to Roo settings:
+在 Roo 设置中添加：
 
 ```json
 {
@@ -93,7 +93,7 @@ Add to Roo settings:
 
 ### Windsurf
 
-Add to Windsurf MCP configuration:
+在 Windsurf MCP 配置中添加：
 
 ```json
 {
@@ -111,9 +111,9 @@ Add to Windsurf MCP configuration:
 }
 ```
 
-### Cline (VS Code Extension)
+### Cline (VS Code 扩展)
 
-Add to Cline MCP settings:
+在 Cline MCP 设置中添加：
 
 ```json
 {
@@ -131,72 +131,72 @@ Add to Cline MCP settings:
 }
 ```
 
-## Environment Variables
+## 环境变量
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `OPENAI_API_KEY` | OpenAI API Key | - |
-| `OPENAI_BASE_URL` | OpenAI API Base URL | `https://api.openai.com/v1` |
-| `OPENAI_IMAGE_MODEL` | OpenAI Image Model | `dall-e-3` |
-| `GEMINI_API_KEY` | Gemini API Key | - |
-| `GEMINI_BASE_URL` | Gemini API Base URL | `https://generativelanguage.googleapis.com/v1beta` |
-| `GEMINI_IMAGE_MODEL` | Gemini Image Model | `gemini-2.0-flash-exp-image-generation` |
-| `OPENROUTER_API_KEY` | OpenRouter API Key | - |
-| `OPENROUTER_BASE_URL` | OpenRouter API Base URL | `https://openrouter.ai/api/v1` |
-| `OPENROUTER_IMAGE_MODEL` | OpenRouter Image Model | `google/gemini-2.5-flash-preview:thinking` |
-| `IMAGE_GEN_DEFAULT_PROVIDER` | Default Provider | `openai` |
-| `IMAGE_GEN_OUTPUT_DIR` | Default Output Directory | `.` |
-| `IMAGE_GEN_FILENAME_PREFIX` | Default Filename Prefix | `image` |
-| `IMAGE_GEN_OVERWRITE` | File Overwrite Mode | `suffix` |
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `OPENAI_API_KEY` | OpenAI API 密钥 | - |
+| `OPENAI_BASE_URL` | OpenAI API 地址 | `https://api.openai.com/v1` |
+| `OPENAI_IMAGE_MODEL` | OpenAI 图片模型 | `dall-e-3` |
+| `GEMINI_API_KEY` | Gemini API 密钥 | - |
+| `GEMINI_BASE_URL` | Gemini API 地址 | `https://generativelanguage.googleapis.com/v1beta` |
+| `GEMINI_IMAGE_MODEL` | Gemini 图片模型 | `gemini-2.0-flash-exp-image-generation` |
+| `OPENROUTER_API_KEY` | OpenRouter API 密钥 | - |
+| `OPENROUTER_BASE_URL` | OpenRouter API 地址 | `https://openrouter.ai/api/v1` |
+| `OPENROUTER_IMAGE_MODEL` | OpenRouter 图片模型 | `google/gemini-2.5-flash-preview:thinking` |
+| `IMAGE_GEN_DEFAULT_PROVIDER` | 默认 Provider | `openai` |
+| `IMAGE_GEN_OUTPUT_DIR` | 默认输出目录 | `.` |
+| `IMAGE_GEN_FILENAME_PREFIX` | 默认文件名前缀 | `image` |
+| `IMAGE_GEN_OVERWRITE` | 文件覆盖模式 | `suffix` |
 
-## Tool Usage
+## 工具使用
 
 ### generate_image
 
-Generate images and save to specified directory.
+生成图片并保存到指定目录。
 
-**Parameters:**
+**参数：**
 
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `provider` | string | Yes | `openai` / `gemini` / `openrouter` |
-| `model` | string | No | Model name |
-| `prompt` | string | No* | Image description |
-| `messages` | array | No* | Chat messages (for multi-turn) |
-| `params` | object | No | Provider-specific parameters |
-| `output` | object | No | Output options |
+| 参数 | 类型 | 必填 | 说明 |
+|------|------|------|------|
+| `provider` | string | 是 | `openai` / `gemini` / `openrouter` |
+| `model` | string | 否 | 模型名称 |
+| `prompt` | string | 否* | 图片描述 |
+| `messages` | array | 否* | 对话消息（用于多轮对话） |
+| `params` | object | 否 | Provider 专属参数 |
+| `output` | object | 否 | 输出选项 |
 
-*Either `prompt` or `messages` is required
+*`prompt` 和 `messages` 至少提供一个
 
-**Provider-Specific Parameters:**
+**Provider 专属参数：**
 
-**OpenAI (DALL-E 3 / GPT-Image-1):**
-- `n`: Number of images (1-10)
-- `size`: `1024x1024` / `1792x1024` / `1024x1792`
-- `quality`: `standard` / `hd` / `high`
-- `style`: `vivid` / `natural`
-- `response_format`: `url` / `b64_json`
+**OpenAI (DALL-E 3 / GPT-Image-1)：**
+- `n`：生成数量 (1-10)
+- `size`：`1024x1024` / `1792x1024` / `1024x1792`
+- `quality`：`standard` / `hd` / `high`
+- `style`：`vivid` / `natural`
+- `response_format`：`url` / `b64_json`
 
-**Gemini:**
-- `aspectRatio`: `1:1` / `16:9` / `4:3` / `9:16` / etc.
-- `imageSize`: `1K` / `2K` / `4K`
+**Gemini：**
+- `aspectRatio`：`1:1` / `16:9` / `4:3` / `9:16` 等
+- `imageSize`：`1K` / `2K` / `4K`
 
-**OpenRouter:**
-- `modalities`: `['image', 'text']`
-- `temperature`: 0-2
-- `max_tokens`: positive integer
+**OpenRouter：**
+- `modalities`：`['image', 'text']`
+- `temperature`：0-2
+- `max_tokens`：正整数
 
-**Output Options:**
-- `dir`: Output directory (default: current directory)
-- `filename`: Filename without extension
-- `overwrite`: `error` / `overwrite` / `suffix`
+**输出选项：**
+- `dir`：输出目录（默认：当前目录）
+- `filename`：文件名（不含扩展名）
+- `overwrite`：`error` / `overwrite` / `suffix`
 
-**Example:**
+**示例：**
 
 ```json
 {
   "provider": "openai",
-  "prompt": "A cute cat sleeping in the sunshine",
+  "prompt": "一只可爱的猫咪在阳光下睡觉",
   "params": {
     "size": "1024x1024",
     "quality": "hd"
@@ -208,27 +208,27 @@ Generate images and save to specified directory.
 }
 ```
 
-## Development
+## 开发
 
 ```bash
-# Clone repository
+# 克隆仓库
 git clone https://github.com/ishailluminas/image-create-mcp.git
 cd image-create-mcp
 
-# Install dependencies
+# 安装依赖
 npm install
 
-# Build
+# 构建
 npm run build
 
-# Run in development mode
+# 开发模式运行
 npm run dev
 ```
 
-## License
+## 许可证
 
 MIT
 
-## Contributing
+## 贡献
 
-Issues and Pull Requests are welcome!
+欢迎提交 Issue 和 Pull Request！
