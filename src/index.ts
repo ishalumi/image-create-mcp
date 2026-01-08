@@ -167,6 +167,10 @@ function parseResponse(body: unknown): ImagePayload[] {
           image_url?: { url: string };
           inline_data?: { mime_type: string; data: string };
         }>;
+        images?: Array<{
+          type?: string;
+          image_url?: { url: string };
+        }>;
       };
     }>;
   };
@@ -174,7 +178,31 @@ function parseResponse(body: unknown): ImagePayload[] {
   const images: ImagePayload[] = [];
 
   for (const choice of response.choices || []) {
-    const content = choice.message?.content;
+    const message = choice.message;
+    const content = message?.content;
+
+    // 处理 message.images 字段（gcli 格式）
+    if (message?.images && Array.isArray(message.images)) {
+      for (const img of message.images) {
+        if (img.image_url?.url) {
+          const url = img.image_url.url;
+          if (url.startsWith('data:')) {
+            const base64Match = url.match(/base64,(.+)/);
+            if (base64Match) {
+              const bytes = decodeBase64(base64Match[1]);
+              images.push({ bytes, mimeType: inferMimeType(bytes), source: 'b64' });
+            }
+          } else {
+            images.push({
+              bytes: new Uint8Array(),
+              mimeType: 'image/png',
+              source: 'url',
+              _url: url,
+            } as ImagePayload & { _url: string });
+          }
+        }
+      }
+    }
 
     if (typeof content === 'string') {
       // Markdown base64 格式: ![...](data:image/...;base64,...)
