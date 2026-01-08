@@ -15,25 +15,27 @@
 
 ## 安装
 
-### 使用 npx（推荐）
+### Claude Code 安装（推荐）
 
-无需安装，直接在 AI 工具中配置即可：
-
-```bash
-npx image-create-mcp
-```
-
-### 全局安装
+**用户级安装**（所有项目可用）：
 
 ```bash
-npm install -g image-create-mcp
+claude mcp add image-create-mcp -s user -- npx -y image-create-mcp
 ```
 
-## 配置说明
+**项目级安装**（仅当前项目可用）：
 
-### Claude Code
+```bash
+claude mcp add image-create-mcp -s project -- npx -y image-create-mcp
+```
 
-在 Claude Code MCP 设置中添加（`~/.claude/claude_desktop_config.json` 或通过 Claude Code 设置）：
+安装后需要设置环境变量，编辑对应的配置文件添加 `env` 字段。
+
+### 手动配置
+
+#### Claude Code / Claude Desktop
+
+**用户级配置**（`~/.claude/claude_desktop_config.json`）：
 
 ```json
 {
@@ -51,7 +53,25 @@ npm install -g image-create-mcp
 }
 ```
 
-### Cursor
+**项目级配置**（项目根目录 `.mcp.json`）：
+
+```json
+{
+  "mcpServers": {
+    "image-create": {
+      "command": "npx",
+      "args": ["-y", "image-create-mcp"],
+      "env": {
+        "OPENAI_API_KEY": "sk-xxx",
+        "GEMINI_API_KEY": "xxx",
+        "OPENROUTER_API_KEY": "sk-or-xxx"
+      }
+    }
+  }
+}
+```
+
+#### Cursor
 
 在 Cursor MCP 设置中添加（`.cursor/mcp.json`）：
 
@@ -71,7 +91,7 @@ npm install -g image-create-mcp
 }
 ```
 
-### Roo Code / Roo Cline
+#### Roo Code / Roo Cline
 
 在 Roo 设置中添加：
 
@@ -91,7 +111,7 @@ npm install -g image-create-mcp
 }
 ```
 
-### Windsurf
+#### Windsurf
 
 在 Windsurf MCP 配置中添加：
 
@@ -111,7 +131,7 @@ npm install -g image-create-mcp
 }
 ```
 
-### Cline (VS Code 扩展)
+#### Cline (VS Code 扩展)
 
 在 Cline MCP 设置中添加：
 
@@ -129,6 +149,18 @@ npm install -g image-create-mcp
     }
   }
 }
+```
+
+### 使用 npx 直接运行
+
+```bash
+npx image-create-mcp
+```
+
+### 全局安装
+
+```bash
+npm install -g image-create-mcp
 ```
 
 ## 环境变量
