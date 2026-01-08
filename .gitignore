@@ -32,3 +32,11 @@ coverage/
 # Temporary files
 *.tmp
 *.temp
+
+# Test output and images
+test_output/
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.webp
